@@ -8,7 +8,10 @@
 </head>
 <body>
   <main class="container">
-    <h1 class="page-title">공지사항</h1>
+    <div class="page-header">
+      <h1 class="page-title">공지사항</h1>
+      <button type="button" id="noticeCreateOpenButton" class="button button-primary">등록</button>
+    </div>
 
     <div class="table-wrap">
       <table class="table">
@@ -27,9 +30,52 @@
     </div>
   </main>
 
+  <dialog id="noticeCreateDialog" class="modal" aria-labelledby="noticeCreateHeading">
+    <!-- 필수 항목 안내 문구를 직접 표시하려고 브라우저 기본 검증을 끕니다. -->
+    <form id="noticeCreateForm" novalidate>
+      <div class="modal-header">
+        <h2 id="noticeCreateHeading" class="modal-title">공지사항 등록</h2>
+        <div class="modal-actions">
+          <button type="submit" id="noticeSaveButton" class="button button-primary">저장</button>
+          <button type="button" id="noticeCancelButton" class="button">취소</button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-row-item">
+          <span class="form-row-label">등록일시</span>
+          <span id="noticeCreateDateText"></span>
+        </div>
+        <div class="form-row-item">
+          <span class="form-row-label">등록자</span>
+          <span id="noticeCreateEmpNoText"></span>
+        </div>
+        <div class="form-row-item">
+          <label for="noticeCategoryInput" class="form-row-label">구분</label>
+          <select id="noticeCategoryInput" class="form-control">
+            <option value="">선택하세요</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-field">
+        <label for="noticeTitleInput">제목</label>
+        <input type="text" id="noticeTitleInput" class="form-control">
+      </div>
+
+      <div class="form-field">
+        <label for="noticeContentInput">내용</label>
+        <textarea id="noticeContentInput" class="form-control" rows="10"></textarea>
+      </div>
+
+      <p id="noticeFormError" class="form-error" role="alert" hidden></p>
+    </form>
+  </dialog>
+
   <!-- 순서 중요: 뒤의 파일이 앞 파일의 상수와 함수를 사용합니다. -->
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
   <script src="js/notice-list.js"></script>
+  <script src="js/notice-create.js"></script>
 </body>
 </html>
