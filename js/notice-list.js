@@ -1,38 +1,103 @@
+const PAGE_SIZES = [20, 50, 100];
+const DEFAULT_PAGE = 1;
+const DEFAULT_SIZE = 20;
+
+const tableWrap = document.getElementById("noticeTableWrap");
 const tableBody = document.getElementById("noticeTableBody");
-const COLUMN_COUNT = 6;
+const rangeText = document.getElementById("noticeRangeText");
+const pageSizeLabel = document.getElementById("noticePageSizeLabel");
+const pageSizeSelect = document.getElementById("noticePageSizeSelect");
+const pageText = document.getElementById("noticePageText");
+const messageBox = document.getElementById("noticeListMessage");
+const messageText = document.getElementById("noticeListMessageText");
 
-// 상세 팝업에서 조회수를 갱신할 때도 호출합니다.
+// 마지막으로 보낸 요청 번호입니다. 늦게 도착한 이전 응답은 그리지 않습니다.
+let latestRequestId = 0;
+
+// URL의 page, size를 읽습니다. 잘못된 값이면 기본값으로 바꾸고 주소도 고칩니다.
+function readListParams() {
+  const params = new URLSearchParams(location.search);
+  const pageValue = params.get("page") ?? String(DEFAULT_PAGE);
+  const sizeValue = params.get("size") ?? String(DEFAULT_SIZE);
+
+  const page = Number(pageValue);
+  const size = Number(sizeValue);
+
+  // "1.5", "abc", "0", "-1", 너무 큰 숫자는 모두 잘못된 page로 봅니다.
+  const isValidPage = /^\d+$/.test(pageValue) && Number.isSafeInteger(page) && page >= 1;
+  const isValidSize = PAGE_SIZES.map(String).includes(sizeValue);
+
+  if (isValidPage && isValidSize) {
+    return { page, size };
+  }
+
+  // 새 기록을 쌓지 않고 현재 주소만 바꿔서, 뒤로가기 때 잘못된 주소로 돌아가지 않게 합니다.
+  history.replaceState(null, "", buildListQuery(DEFAULT_PAGE, DEFAULT_SIZE));
+  return { page: DEFAULT_PAGE, size: DEFAULT_SIZE };
+}
+
+// { page: 2, size: 50 } → "?page=2&size=50"
+function buildListQuery(page, size) {
+  return `?${new URLSearchParams({ page, size })}`;
+}
+
+// 현재 주소의 페이지를 다시 조회합니다. 상세 팝업에서 조회수를 갱신할 때도 호출합니다.
 async function loadNotices() {
-  try {
-    const response = await fetch(`${API_BASE_URL}/notices`);
+  const { page, size } = readListParams();
+  const requestId = ++latestRequestId;
 
-    // $.ajax와 달리 fetch는 404/500에서 오류를 던지지 않아 직접 확인합니다.
+  try {
+    const response = await fetch(`${API_BASE_URL}/notices${buildListQuery(page, size)}`);
+
+    // $.ajax와 달리 fetch는 400/500에서 오류를 던지지 않아 직접 확인합니다.
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
 
-    const notices = await response.json();
-    renderNotices(notices);
+    const data = await response.json();
+    if (requestId !== latestRequestId) {
+      return; // 그사이 다른 페이지를 요청했으므로 이 응답은 버립니다.
+    }
+    renderList(data);
   } catch (error) {
+    if (requestId !== latestRequestId) {
+      return;
+    }
     console.error("공지사항 목록 조회 실패:", error);
-    showMessage("공지사항을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    showListMessage("공지사항을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
   }
 }
 
-function renderNotices(notices) {
-  if (notices.length === 0) {
-    showMessage("등록된 공지사항이 없습니다.");
-    return;
-  }
+function renderList({ items, totalCount, page, size, totalPages }) {
+  // 최신 글이 큰 번호: 번호 = 전체 건수 - 앞 페이지까지의 건수 - 이 페이지 안의 순서
+  const firstNumber = totalCount - (page - 1) * size;
+  tableBody.replaceChildren(
+    ...items.map((notice, index) => createNoticeRow(notice, firstNumber - index))
+  );
 
-  tableBody.replaceChildren(...notices.map(createNoticeRow));
+  rangeText.textContent = formatRange(totalCount, page, size);
+  pageText.textContent = `${page}/${totalPages} page`;
+  pageSizeSelect.value = String(size);
+
+  rangeText.hidden = false;
+  pageSizeLabel.hidden = false;
+  pageText.hidden = false;
+  messageBox.hidden = true;
+  tableWrap.hidden = false;
 }
 
-function createNoticeRow(notice) {
+// 210건, 2페이지, 20개씩 → "21~40 / 총 210건". 끝 번호는 전체 건수를 넘지 않습니다.
+function formatRange(totalCount, page, size) {
+  const start = (page - 1) * size + 1;
+  const end = Math.min(page * size, totalCount);
+  return `${start}~${end} / 총 ${totalCount}건`;
+}
+
+function createNoticeRow(notice, number) {
   const row = document.createElement("tr");
 
   row.append(
-    createCell(notice.noticeSeq),
+    createCell(number),
     createCategoryCell(notice.category),
     createTitleCell(notice),
     createCell(notice.createEmpNo),
@@ -87,17 +152,14 @@ function openNoticePopup(url) {
   popup.focus();
 }
 
-function showMessage(text) {
-  const row = document.createElement("tr");
-  row.className = "message-row";
-
-  const cell = createCell(text);
-  cell.className = "message";
-  cell.colSpan = COLUMN_COUNT;
-
-  row.append(cell);
-  tableBody.replaceChildren(row);
+// 표 대신 안내 문구를 보여주고, 건수·크기·페이지 표시는 숨깁니다.
+function showListMessage(text) {
+  messageText.textContent = text;
+  messageBox.hidden = false;
+  tableWrap.hidden = true;
+  rangeText.hidden = true;
+  pageSizeLabel.hidden = true;
+  pageText.hidden = true;
 }
 
-showMessage("불러오는 중입니다...");
 loadNotices();

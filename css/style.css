@@ -318,3 +318,112 @@ textarea.form-control {
   color: var(--color-important);
   font-weight: 600;
 }
+
+/* 화면에는 안 보이지만 스크린리더는 읽는 글자 */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* hidden 속성이 display 규칙에 덮이지 않게 합니다. */
+[hidden] {
+  display: none !important;
+}
+
+.list-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 40px;
+  margin-bottom: 8px;
+}
+
+.list-range {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+/* 건수가 숨겨져도 드롭다운은 오른쪽에 둡니다. */
+.list-page-size {
+  margin-left: auto;
+}
+
+.list-page-size .form-control {
+  width: auto;
+  padding: 4px 8px;
+  font-size: 14px;
+}
+
+.list-message {
+  padding: 48px 8px;
+  border-top: 2px solid var(--color-text);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.list-message p {
+  margin: 0;
+}
+
+.list-message .button {
+  margin-top: 16px;
+}
+
+/* 가운데 페이지 번호, 오른쪽 "3/5 page" */
+.list-footer {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.pagination {
+  grid-column: 2;
+  display: flex;
+  gap: 4px;
+}
+
+.pagination button {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pagination button:hover:not(:disabled) {
+  background: var(--color-hover);
+}
+
+.pagination button:disabled {
+  color: var(--color-muted);
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pagination button[aria-current="page"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: 600;
+  opacity: 1;
+}
+
+.list-page-text {
+  grid-column: 3;
+  justify-self: end;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+}

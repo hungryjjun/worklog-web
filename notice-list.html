@@ -13,7 +13,25 @@
       <button type="button" id="noticeCreateOpenButton" class="button button-primary">등록</button>
     </div>
 
-    <div class="table-wrap">
+    <div class="list-toolbar">
+      <p id="noticeRangeText" class="list-range" hidden></p>
+      <label id="noticePageSizeLabel" class="list-page-size" hidden>
+        <span class="visually-hidden">페이지당 건수</span>
+        <select id="noticePageSizeSelect" class="form-control">
+          <option value="20">20개씩</option>
+          <option value="50">50개씩</option>
+          <option value="100">100개씩</option>
+        </select>
+      </label>
+    </div>
+
+    <!-- 불러오는 중, 0건, 없는 페이지, 오류일 때 표 대신 보여줍니다. -->
+    <div id="noticeListMessage" class="list-message">
+      <p id="noticeListMessageText">불러오는 중입니다...</p>
+      <button type="button" id="noticeFirstPageButton" class="button" hidden>첫 페이지로</button>
+    </div>
+
+    <div id="noticeTableWrap" class="table-wrap" hidden>
       <table class="table">
         <thead>
           <tr>
@@ -27,6 +45,11 @@
         </thead>
         <tbody id="noticeTableBody"></tbody>
       </table>
+    </div>
+
+    <div class="list-footer">
+      <nav id="noticePagination" class="pagination" aria-label="페이지" hidden></nav>
+      <p id="noticePageText" class="list-page-text" hidden></p>
     </div>
   </main>
 
