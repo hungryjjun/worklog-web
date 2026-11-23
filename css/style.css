@@ -73,15 +73,6 @@ a:hover {
   white-space: normal;
 }
 
-.table td.message {
-  padding: 48px 8px;
-  color: var(--color-muted);
-}
-
-.table tbody tr.message-row:hover {
-  background: none;
-}
-
 .detail {
   border-top: 2px solid var(--color-text);
 }
@@ -332,6 +323,50 @@ textarea.form-control {
 /* hidden 속성이 display 규칙에 덮이지 않게 합니다. */
 [hidden] {
   display: none !important;
+}
+
+/* 검색 줄: 화면이 좁으면 다음 줄로 넘어갑니다. */
+.search-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.search-form .form-control {
+  width: auto;
+}
+
+/* 남는 너비는 검색어 칸이 차지합니다. */
+.search-form .search-keyword {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.search-period {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.search-error {
+  margin-bottom: 8px;
+}
+
+.ai-search-icon {
+  font-size: 18px;
+}
+
+.ai-search-message {
+  margin: 0 0 8px;
+  color: var(--color-muted);
+  font-size: 14px;
+  overflow-wrap: anywhere; /* AI가 준 긴 검색어가 화면 밖으로 나가지 않게 합니다. */
+}
+
+.ai-search-message.is-error {
+  color: var(--color-important);
 }
 
 .list-toolbar {

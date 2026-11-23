@@ -95,7 +95,8 @@ async function saveNotice(event) {
     }
 
     createDialog.close();
-    loadNotices();
+    // 새 글은 1페이지 맨 위에 나오므로 1페이지로 이동합니다. 고른 크기는 유지합니다.
+    goToPage(DEFAULT_PAGE, readListParams().size);
   } catch (error) {
     console.error("공지사항 등록 실패:", error);
     showFormError("공지사항을 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.");

@@ -2,6 +2,17 @@ const PAGE_SIZES = [20, 50, 100];
 const DEFAULT_PAGE = 1;
 const DEFAULT_SIZE = 20;
 const PAGE_GROUP_SIZE = 5; // 페이지 번호를 몇 개씩 묶어 보여줄지
+const DEFAULT_SEARCH_TYPE = "ALL";
+const KEYWORD_MAX_LENGTH = 20; // 서버 NoticeSearchRequest의 @Size(max = 20)와 같은 값
+
+const searchForm = document.getElementById("noticeSearchForm");
+const categorySelect = document.getElementById("noticeSearchCategory");
+const searchTypeSelect = document.getElementById("noticeSearchType");
+const keywordInput = document.getElementById("noticeSearchKeyword");
+const fromInput = document.getElementById("noticeSearchFrom");
+const toInput = document.getElementById("noticeSearchTo");
+const searchResetButton = document.getElementById("noticeSearchResetButton");
+const searchError = document.getElementById("noticeSearchError");
 
 const tableWrap = document.getElementById("noticeTableWrap");
 const tableBody = document.getElementById("noticeTableBody");
@@ -17,7 +28,43 @@ const firstPageButton = document.getElementById("noticeFirstPageButton");
 // 마지막으로 보낸 요청 번호입니다. 늦게 도착한 이전 응답은 그리지 않습니다.
 let latestRequestId = 0;
 
-// URL의 page, size를 읽습니다. 잘못된 값이면 기본값으로 바꾸고 주소도 고칩니다.
+// 올해 1월 1일 ~ 12월 31일입니다. 사용자 PC의 날짜를 기준으로 합니다.
+function getDefaultPeriod() {
+  const year = new Date().getFullYear();
+  return { from: `${year}-01-01`, to: `${year}-12-31` };
+}
+
+// 첫 화면과 초기화에 쓰는 검색 조건입니다.
+function getDefaultSearch() {
+  return { category: "", searchType: DEFAULT_SEARCH_TYPE, keyword: "", ...getDefaultPeriod() };
+}
+
+// "2026-11-23"만 통과합니다. "2026-1-5", "abc", 없는 날짜 "2026-02-30"은 false입니다.
+function isValidDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+  const [year, month, day] = value.split("-").map(Number);
+  // 2026-02-30을 넣으면 Date는 3월 2일로 넘깁니다. 넣은 값과 그대로 같아야 실제 있는 날짜입니다.
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
+}
+
+// from, to는 세 경우를 나눕니다.
+// - 키가 없음(?page=1): 처음 들어온 화면이므로 올해 기본값
+// - 빈 값(?from=): 사용자가 비웠으므로 그쪽 기간은 제한 없음
+// - 이상한 값(?from=abc): 올해 기본값
+function readDateParam(params, name, defaultValue) {
+  const value = params.get(name);
+  if (value === null) {
+    return defaultValue;
+  }
+  return value === "" || isValidDate(value) ? value : defaultValue;
+}
+
+// URL의 page, size와 검색 조건을 읽습니다. 잘못된 값은 기본값으로 바꾸고 주소도 고칩니다.
 function readListParams() {
   const params = new URLSearchParams(location.search);
   const pageValue = params.get("page") ?? String(DEFAULT_PAGE);
@@ -30,67 +77,145 @@ function readListParams() {
   const isValidPage = /^\d+$/.test(pageValue) && Number.isSafeInteger(page) && page >= 1;
   const isValidSize = PAGE_SIZES.map(String).includes(sizeValue);
 
-  if (isValidPage && isValidSize) {
-    return { page, size };
+  const category = params.get("category") ?? "";
+  const searchType = params.get("searchType") ?? DEFAULT_SEARCH_TYPE;
+  const keyword = (params.get("keyword") ?? "").trim();
+
+  const defaultPeriod = getDefaultPeriod();
+  let from = readDateParam(params, "from", defaultPeriod.from);
+  let to = readDateParam(params, "to", defaultPeriod.to);
+
+  // yyyy-MM-dd는 문자열 비교로 날짜 순서를 알 수 있습니다. 순서가 뒤집혔으면 둘 다 기본값으로 바꿉니다.
+  if (from !== "" && to !== "" && from > to) {
+    from = defaultPeriod.from;
+    to = defaultPeriod.to;
   }
 
-  // 새 기록을 쌓지 않고 현재 주소만 바꿔서, 뒤로가기 때 잘못된 주소로 돌아가지 않게 합니다.
-  history.replaceState(null, "", buildListQuery(DEFAULT_PAGE, DEFAULT_SIZE));
-  return { page: DEFAULT_PAGE, size: DEFAULT_SIZE };
+  // Object.hasOwn: "toString"처럼 모든 객체가 물려받은 이름은 통과시키지 않습니다. (in 연산자는 통과시킴)
+  const listParams = {
+    page: isValidPage ? page : DEFAULT_PAGE,
+    size: isValidSize ? size : DEFAULT_SIZE,
+    category: Object.hasOwn(NOTICE_CATEGORY_NAMES, category) ? category : "",
+    searchType: Object.hasOwn(NOTICE_SEARCH_TYPE_NAMES, searchType) ? searchType : DEFAULT_SEARCH_TYPE,
+    keyword: keyword.length <= KEYWORD_MAX_LENGTH ? keyword : "",
+    from,
+    to,
+  };
+
+  // 고친 값이 있으면 새 기록을 쌓지 않고 현재 주소만 바꿔서, 뒤로가기 때 잘못된 주소로 돌아가지 않게 합니다.
+  const query = buildListQuery(listParams);
+  if (query !== location.search) {
+    history.replaceState(null, "", query);
+  }
+  return listParams;
 }
 
-// { page: 2, size: 50 } → "?page=2&size=50"
-function buildListQuery(page, size) {
-  return `?${new URLSearchParams({ page, size })}`;
+// 화면 주소용 → "?page=1&size=20&keyword=휴가&from=2026-01-01&to="
+// 빈 구분·검색어, 기본 검색대상(ALL)은 주소에서 뺍니다.
+// from, to는 "키 없음(올해 기본값)"과 "빈 값(제한 없음)"을 구분해야 하므로 비어 있어도 남깁니다.
+function buildListQuery({ page, size, category, searchType, keyword, from, to }) {
+  // URLSearchParams는 jQuery의 $.param()처럼 한글·특수문자를 인코딩해 줍니다.
+  const params = new URLSearchParams({ page, size });
+  if (category) {
+    params.set("category", category);
+  }
+  if (searchType !== DEFAULT_SEARCH_TYPE) {
+    params.set("searchType", searchType);
+  }
+  if (keyword) {
+    params.set("keyword", keyword);
+  }
+  params.set("from", from);
+  params.set("to", to);
+  return `?${params}`;
 }
 
-// 주소를 바꾸고(기록 추가) 그 페이지를 조회합니다. 페이지 이동, 크기 변경에 사용합니다.
-function goToPage(page, size) {
-  const query = buildListQuery(page, size);
+// 서버 요청용입니다. 값이 있는 조건만 보냅니다. from이 비면 보내지 않으므로 서버는 시작일 제한 없이 찾습니다.
+function buildApiQuery(listParams) {
+  const params = new URLSearchParams();
+  Object.entries(listParams).forEach(([name, value]) => {
+    if (value !== "") {
+      params.set(name, value);
+    }
+  });
+  return `?${params}`;
+}
+
+// 주소를 바꾸고(기록 추가) 그 조건으로 조회합니다. 검색, 초기화, 페이지 이동, 크기 변경이 모두 여기로 옵니다.
+function goToList(listParams) {
+  const query = buildListQuery(listParams);
 
   // 같은 주소면 기록을 쌓지 않아, 뒤로가기를 여러 번 누르지 않아도 되게 합니다.
   if (query !== location.search) {
     history.pushState(null, "", query);
   }
+  showListFromUrl();
+}
+
+// 검색 조건은 그대로 두고 페이지와 크기만 바꿉니다. (등록 모달 notice-create.js에서도 사용)
+function goToPage(page, size) {
+  goToList({ ...readListParams(), page, size });
+}
+
+// 주소의 조건을 검색창에 채우고 목록을 조회합니다. 첫 화면, 뒤로가기, 이동할 때 사용합니다.
+// loadNotices()에 넣지 않은 이유: 상세 팝업이 조회수 갱신으로 loadNotices()를 부를 때,
+// 사용자가 검색창에 입력 중이던 값이 지워지지 않게 하려는 것입니다.
+function showListFromUrl() {
+  fillSearchForm(readListParams());
+  // 사용자가 목록 조건을 바꿨다고 알립니다. notice-ai-search.js가 받아서 늦게 온 AI 응답을 버리고 안내를 지웁니다.
+  // jQuery의 $(document).trigger("noticelistnavigate")와 같은 사용자 정의 이벤트입니다.
+  document.dispatchEvent(new CustomEvent("noticelistnavigate"));
   loadNotices();
 }
 
-// 현재 주소의 페이지를 다시 조회합니다. 상세 팝업에서 조회수를 갱신할 때도 호출합니다.
+// 현재 주소의 조건으로 다시 조회합니다. 상세 팝업에서 조회수를 갱신할 때도 호출합니다.
 async function loadNotices() {
-  const { page, size } = readListParams();
+  const listParams = readListParams();
   const requestId = ++latestRequestId;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/notices${buildListQuery(page, size)}`);
+    const response = await fetch(`${API_BASE_URL}/notices${buildApiQuery(listParams)}`);
 
     // $.ajax와 달리 fetch는 400/500에서 오류를 던지지 않아 직접 확인합니다.
     if (!response.ok) {
       const error = new Error(`HTTP ${response.status}`);
       error.status = response.status; // catch에서 400을 구분하려고 담아 둡니다.
+      if (response.status === 400) {
+        // $.ajax의 xhr.responseJSON처럼, 서버 검증 메시지를 본문에서 꺼내 둡니다.
+        error.serverMessage = await readErrorMessage(response);
+      }
       throw error;
     }
 
     const data = await response.json();
     if (requestId !== latestRequestId) {
-      return; // 그사이 다른 페이지를 요청했으므로 이 응답은 버립니다.
+      return; // 그사이 다른 조건을 요청했으므로 이 응답은 버립니다.
     }
-    renderList(data);
+    renderList(data, listParams);
   } catch (error) {
     if (requestId !== latestRequestId) {
       return;
     }
     console.error("공지사항 목록 조회 실패:", error);
 
-    // 요청 전에 page/size를 이미 고쳤으므로, 400은 화면과 서버의 검증 규칙이 어긋난 경우입니다.
+    // 요청 전에 조건을 이미 고쳤으므로, 400은 화면과 서버의 검증 규칙이 어긋난 경우입니다.
+    // 서버 문구는 textContent로만 출력합니다. (showListMessage)
     showListMessage(error.status === 400
-      ? "잘못된 조회 조건입니다. 주소를 확인해 주세요."
+      ? (error.serverMessage ?? "잘못된 조회 조건입니다. 주소를 확인해 주세요.")
       : "공지사항을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
   }
 }
 
-function renderList({ items, totalCount, page, size, totalPages }) {
+// 검색대상(searchType)은 검색어가 있어야 의미가 있으므로 조건으로 세지 않습니다. (서버 AI 검색과 같은 기준)
+function hasSearchCondition({ category, keyword, from, to }) {
+  return Boolean(category || keyword || from || to);
+}
+
+function renderList({ items, totalCount, page, size, totalPages }, listParams) {
   if (totalPages === 0) {
-    showListMessage("등록된 공지가 없습니다.");
+    showListMessage(hasSearchCondition(listParams)
+      ? "일치하는 검색결과가 없습니다."
+      : "등록된 공지가 없습니다.");
     return;
   }
 
@@ -253,6 +378,80 @@ function showListMessage(text, { showFirstPageButton = false } = {}) {
   pagination.hidden = true;
 }
 
+// 구분, 검색대상 옵션을 common.js의 코드표로 채웁니다. 화면에는 한글, value에는 서버 코드가 들어갑니다.
+function fillSearchOptions() {
+  Object.entries(NOTICE_CATEGORY_NAMES).forEach(([code, name]) => {
+    categorySelect.add(new Option(name, code));
+  });
+  Object.entries(NOTICE_SEARCH_TYPE_NAMES).forEach(([code, name]) => {
+    searchTypeSelect.add(new Option(name, code));
+  });
+}
+
+// jQuery의 $("#id").val(값)과 같습니다. 날짜 칸에 ""를 넣으면 빈 칸이 됩니다.
+function fillSearchForm({ category, searchType, keyword, from, to }) {
+  categorySelect.value = category;
+  searchTypeSelect.value = searchType;
+  keywordInput.value = keyword;
+  fromInput.value = from;
+  toInput.value = to;
+  hideSearchError(); // 화면이 새 조건으로 바뀌었으므로 이전 안내는 지웁니다.
+}
+
+function readSearchForm() {
+  return {
+    category: categorySelect.value,
+    searchType: searchTypeSelect.value,
+    keyword: keywordInput.value.trim(), // 공백만 입력하면 조건 없이 전체 검색이 됩니다.
+    from: fromInput.value,
+    to: toInput.value,
+  };
+}
+
+// 검색창의 조건으로 1페이지부터 검색합니다. 사용자가 고른 페이지 크기는 유지합니다.
+function searchNotices() {
+  // 날짜를 "2026. 11. --"처럼 일부만 입력하면 value가 ""가 되어 조용히 기간 제한 없이 검색됩니다.
+  // checkValidity()는 그런 칸(badInput)과 max를 넘은 칸을 false로 알려 줍니다.
+  const invalidDateInput = [fromInput, toInput].find((input) => !input.checkValidity());
+  if (invalidDateInput) {
+    showSearchError("날짜를 끝까지 올바르게 입력해 주세요.", invalidDateInput);
+    return;
+  }
+
+  const conditions = readSearchForm();
+  if (conditions.from && conditions.to && conditions.from > conditions.to) {
+    showSearchError("시작일은 종료일보다 늦을 수 없습니다.", fromInput);
+    return;
+  }
+
+  goToList({ ...conditions, page: DEFAULT_PAGE, size: readListParams().size });
+}
+
+// 검색 조건을 기본값(전체 / 제목+내용 / 빈 검색어 / 올해)으로 되돌리고 다시 조회합니다. 크기는 유지합니다.
+function resetSearch() {
+  goToList({ ...getDefaultSearch(), page: DEFAULT_PAGE, size: readListParams().size });
+}
+
+// 검색하지 않고 안내만 합니다. 고칠 칸으로 커서를 옮겨 줍니다.
+function showSearchError(text, focusTarget) {
+  searchError.textContent = text;
+  searchError.hidden = false;
+  focusTarget?.focus();
+}
+
+function hideSearchError() {
+  searchError.textContent = "";
+  searchError.hidden = true;
+}
+
+// 검색 버튼 클릭과 검색어 칸의 Enter가 모두 submit으로 옵니다. (jQuery의 $(form).on("submit", ...))
+searchForm.addEventListener("submit", (event) => {
+  event.preventDefault(); // 폼의 기본 동작인 페이지 이동(새로고침)을 막습니다.
+  searchNotices();
+});
+
+searchResetButton.addEventListener("click", resetSearch);
+
 // 버튼마다 이벤트를 걸지 않고 nav 하나에서 받습니다. (jQuery의 $(nav).on("click", "button", ...)와 같은 위임)
 pagination.addEventListener("click", (event) => {
   const button = event.target.closest("button");
@@ -273,7 +472,8 @@ firstPageButton.addEventListener("click", () => {
   goToPage(DEFAULT_PAGE, readListParams().size);
 });
 
-// 뒤로가기/앞으로가기로 주소가 바뀌면 그 주소의 페이지를 조회합니다.
-window.addEventListener("popstate", loadNotices);
+// 뒤로가기/앞으로가기로 주소가 바뀌면 그 주소의 조건을 검색창에 채우고 조회합니다.
+window.addEventListener("popstate", showListFromUrl);
 
-loadNotices();
+fillSearchOptions();
+showListFromUrl();

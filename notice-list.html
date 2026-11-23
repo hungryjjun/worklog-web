@@ -13,6 +13,45 @@
       <button type="button" id="noticeCreateOpenButton" class="button button-primary">등록</button>
     </div>
 
+    <!-- 검색 버튼 클릭과 검색어 입력칸 Enter를 submit 하나로 처리합니다. 안내 문구를 직접 보여주려고 기본 검증은 끕니다. -->
+    <form id="noticeSearchForm" class="search-form" novalidate>
+      <label for="noticeSearchCategory" class="visually-hidden">구분</label>
+      <select id="noticeSearchCategory" class="form-control">
+        <option value="">전체</option>
+      </select>
+
+      <label for="noticeSearchType" class="visually-hidden">검색대상</label>
+      <select id="noticeSearchType" class="form-control"></select>
+
+      <label for="noticeSearchKeyword" class="visually-hidden">검색어</label>
+      <input type="search" id="noticeSearchKeyword" class="form-control search-keyword"
+             maxlength="20" placeholder="검색어">
+
+      <span class="search-period">
+        <label for="noticeSearchFrom" class="visually-hidden">시작일</label>
+        <!-- max가 없으면 크롬에서 연도를 6자리까지 입력할 수 있습니다. -->
+        <input type="date" id="noticeSearchFrom" class="form-control" max="9999-12-31">
+        <span aria-hidden="true">~</span>
+        <label for="noticeSearchTo" class="visually-hidden">종료일</label>
+        <input type="date" id="noticeSearchTo" class="form-control" max="9999-12-31">
+      </span>
+
+      <button type="submit" class="button button-primary">검색</button>
+      <button type="button" id="noticeSearchResetButton" class="button">초기화</button>
+    </form>
+    <p id="noticeSearchError" class="form-error search-error" role="alert" hidden></p>
+
+    <!-- AI가 질문에서 검색 조건을 뽑아 위 검색창에 채운 뒤 일반 검색을 실행합니다. -->
+    <form id="noticeAiSearchForm" class="search-form" novalidate>
+      <span class="ai-search-icon" aria-hidden="true">🤖</span>
+      <label for="noticeAiQuestion" class="visually-hidden">AI에게 찾을 공지 질문</label>
+      <input type="text" id="noticeAiQuestion" class="form-control search-keyword"
+             maxlength="200" placeholder="예: 올해 인사 공지 중 휴가 관련 글 찾아줘">
+      <button type="submit" id="noticeAiSearchButton" class="button">AI로 찾기</button>
+    </form>
+    <!-- "이렇게 이해했어요"와 오류 안내를 함께 씁니다. aria-live로 스크린리더가 바뀐 문구를 읽습니다. -->
+    <p id="noticeAiSearchMessage" class="ai-search-message" aria-live="polite" hidden></p>
+
     <div class="list-toolbar">
       <p id="noticeRangeText" class="list-range" hidden></p>
       <label id="noticePageSizeLabel" class="list-page-size" hidden>
@@ -99,6 +138,7 @@
   <script src="js/config.js"></script>
   <script src="js/common.js"></script>
   <script src="js/notice-list.js"></script>
+  <script src="js/notice-ai-search.js"></script>
   <script src="js/notice-create.js"></script>
 </body>
 </html>
