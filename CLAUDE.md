@@ -1,11 +1,11 @@
 # CLAUDE.md
 
-이 폴더는 worklog-api(Spring Boot, http://localhost:8080)를 호출하는 화면 프로젝트입니다.
+이 폴더는 worklog-api(Spring Boot, http://localhost:8081)를 호출하는 화면 프로젝트입니다.
 
 ## 프로젝트 정보
 
 - 프레임워크 없이 HTML, CSS, JavaScript(fetch)만 사용
-- API 주소는 http://localhost:8080/api, 공통 설정 파일 한 곳에서 관리
+- API 주소는 http://localhost:8081/api, 공통 설정 파일 한 곳에서 관리
 - Live Server(5500 포트)로 실행
 - 개발자는 회사에서 JSP와 jQuery를 주로 사용
 
